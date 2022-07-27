@@ -1,0 +1,55 @@
+pipeline {
+    agent any
+    environment {
+        AWS_ACCOUNT_ID="405764228532"
+        AWS_DEFAULT_REGION="ap-south-1" 
+        IMAGE_REPO_NAME="aws_ecr"
+        IMAGE_TAG="latest"
+        REPOSITORY_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}"
+        K8_MASTER ="ubuntu@172.31.1.149"
+    }
+    stages {
+     stage('Logging into AWS ECR') {
+            steps {
+                script {
+                sh "aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+                }
+                 
+            }
+        }
+      stage('Pulling Image from ECR') {
+         steps {
+
+           script {
+            
+             sh "docker pull ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}"
+              }
+           }
+      }
+     stage('Cloning Git') {
+            steps {
+                git branch: 'main', url: 'https://github.com/abhishreepavan/docker_nodejs'    
+            }
+        }
+
+      stage('deploying on kubernetes') {
+        steps{
+           sshagent(['k8s']) {
+                sh "scp -o StrictHostKeyChecking=no deployment.yml ${K8_MASTER}:/home/ubuntu"
+            script {
+                try{
+                    sh "ssh ${K8_MASTER} kubectl create -f ."
+                }catch(error){
+                    sh "ssh ${K8_MASTER} kubectl create -f ."
+            }
+
+           }
+          
+        }
+      }
+    }
+   }
+  }
+
+
+
